@@ -542,7 +542,6 @@ test('searchGlobalCommandPalette indexes inventory, CRM clients, and treasury re
   assert.ok(clientHits.length >= 1);
   assert.ok(clientHits.every((r) => r.category === 'clients'));
 
-  // When RBAC sensitive visibility is false, treasury records are excluded
   const maskedResults = searchGlobalCommandPalette(
     INITIAL_DEALERSHIP_STATE,
     '',
@@ -550,6 +549,23 @@ test('searchGlobalCommandPalette indexes inventory, CRM clients, and treasury re
     false
   );
   assert.ok(maskedResults.every((r) => r.category !== 'treasury'));
+});
+
+test('decodeVinNumber decodes 17-character VINs with NHTSA API and local WMI fallback', async () => {
+  const { decodeVinNumber, sanitizeVin } = await import('./vinDecoder');
+
+  assert.equal(sanitizeVin(' 1hgcv1f34la012345! '), '1HGCV1F34LA012345');
+
+  const invalidResult = await decodeVinNumber('SHORTVIN');
+  assert.equal(invalidResult.isValid, false);
+  assert.ok(invalidResult.error?.includes('17 alphanumeric'));
+
+  const validResult = await decodeVinNumber('1HGCV1F34LA012345');
+  assert.equal(validResult.isValid, true);
+  assert.equal(validResult.make, 'Honda');
+  assert.equal(validResult.model, 'Accord');
+  assert.equal(validResult.year, 2020);
+  assert.ok(validResult.rawSource === 'nhtsa' || validResult.rawSource === 'local_wmi');
 });
 
 

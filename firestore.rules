@@ -62,8 +62,8 @@ service cloud.firestore {
         data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
         data.dealershipTitle is string && data.dealershipTitle.size() >= 1 && data.dealershipTitle.size() <= 120 &&
-        data.createdAt is timestamp &&
-        data.updatedAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time) &&
+        (data.updatedAt is timestamp || data.updatedAt == request.time);
     }
 
     function isValidUserPrivateInfo(data, userId) {
@@ -72,8 +72,8 @@ service cloud.firestore {
         data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
         data.phone is string && data.phone.size() <= 40 &&
-        data.createdAt is timestamp &&
-        data.updatedAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time) &&
+        (data.updatedAt is timestamp || data.updatedAt == request.time);
     }
 
     function isValidAdminRecord(data, adminId) {
@@ -81,7 +81,7 @@ service cloud.firestore {
         data.keys().hasOnly(['uid', 'note', 'createdAt']) &&
         data.uid is string && data.uid == adminId && isValidId(data.uid) &&
         data.note is string && data.note.size() >= 1 && data.note.size() <= 200 &&
-        data.createdAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time);
     }
 
     function isValidDealershipWorkspace(data, workspaceId) {
@@ -126,8 +126,8 @@ service cloud.firestore {
         data.totalCashBalance is number && data.totalCashBalance >= -100000000 && data.totalCashBalance <= 1000000000 &&
         data.status is string && data.status.size() >= 6 && data.status.size() <= 16 &&
         data.status in ['active', 'archived'] &&
-        data.createdAt is timestamp &&
-        data.updatedAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time) &&
+        (data.updatedAt is timestamp || data.updatedAt == request.time);
     }
 
     function isValidCloudVehicleRecord(data, workspaceId) {
@@ -173,8 +173,8 @@ service cloud.firestore {
         data.askingPrice is number && data.askingPrice >= 0 && data.askingPrice <= 10000000 &&
         data.status is string && data.status.size() >= 4 && data.status.size() <= 20 &&
         data.status in ['Available', 'In prep', 'In transit', 'Reserved', 'Sold'] &&
-        data.createdAt is timestamp &&
-        data.updatedAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time) &&
+        (data.updatedAt is timestamp || data.updatedAt == request.time);
     }
 
     function isValidCloudSyncAuditEntry(data, workspaceId) {
@@ -202,7 +202,7 @@ service cloud.firestore {
         data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500 &&
         data.category is string && data.category.size() >= 1 && data.category.size() <= 80 &&
         data.vehiclesCount is int && data.vehiclesCount >= 0 && data.vehiclesCount <= 5000 &&
-        data.createdAt is timestamp;
+        (data.createdAt is timestamp || data.createdAt == request.time);
     }
 
     // =========================================================================
@@ -217,16 +217,13 @@ service cloud.firestore {
         isValidId(userId) &&
         isValidId(docId) &&
         isOwner(userId) &&
-        isValidUserPublicProfile(incoming(), userId) &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
+        isValidUserPublicProfile(incoming(), userId);
       allow update: if isVerifiedUser() &&
         isValidId(userId) &&
         isValidId(docId) &&
         isValidUserPublicProfile(incoming(), userId) &&
         incoming().uid == existing().uid &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time && (
+        incoming().createdAt == existing().createdAt && (
           isAdmin() ||
           (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'dealershipTitle', 'updatedAt']))
         );
@@ -241,16 +238,13 @@ service cloud.firestore {
         isValidId(userId) &&
         isValidId(docId) &&
         isOwner(userId) &&
-        isValidUserPrivateInfo(incoming(), userId) &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
+        isValidUserPrivateInfo(incoming(), userId);
       allow update: if isVerifiedUser() &&
         isValidId(userId) &&
         isValidId(docId) &&
         isValidUserPrivateInfo(incoming(), userId) &&
         incoming().uid == existing().uid &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time && (
+        incoming().createdAt == existing().createdAt && (
           isAdmin() ||
           (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']))
         );
@@ -264,7 +258,6 @@ service cloud.firestore {
       allow create: if isVerifiedUser() &&
         isValidId(adminId) &&
         isValidAdminRecord(incoming(), adminId) &&
-        incoming().createdAt == request.time &&
         isAdmin();
       allow update: if isVerifiedUser() &&
         isValidId(adminId) &&
@@ -284,15 +277,12 @@ service cloud.firestore {
         isValidId(workspaceId) &&
         isOwner(workspaceId) &&
         isValidDealershipWorkspace(incoming(), workspaceId) &&
-        incoming().status == 'active' &&
-        incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time;
+        incoming().status == 'active';
       allow update: if isVerifiedUser() &&
         isValidId(workspaceId) &&
         isValidDealershipWorkspace(incoming(), workspaceId) &&
         incoming().ownerId == existing().ownerId &&
         incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time &&
         (existing().status != 'archived' || isAdmin()) && (
           isAdmin() ||
           // Action 1: Sync Workspace Metrics & Settings
@@ -323,8 +313,6 @@ service cloud.firestore {
           isValidId(workspaceId) &&
           isValidId(vehicleId) &&
           isValidCloudVehicleRecord(incoming(), workspaceId) &&
-          incoming().createdAt == request.time &&
-          incoming().updatedAt == request.time &&
           isWorkspaceOwner(workspaceId);
         allow update: if isVerifiedUser() &&
           isValidId(workspaceId) &&
@@ -333,7 +321,6 @@ service cloud.firestore {
           incoming().workspaceId == existing().workspaceId &&
           incoming().ownerId == existing().ownerId &&
           incoming().createdAt == existing().createdAt &&
-          incoming().updatedAt == request.time &&
           (existing().status != 'Sold' || isAdmin()) &&
           isWorkspaceOwner(workspaceId) && (
             isAdmin() ||
@@ -366,7 +353,6 @@ service cloud.firestore {
           isValidId(workspaceId) &&
           isValidId(logId) &&
           isValidCloudSyncAuditEntry(incoming(), workspaceId) &&
-          incoming().createdAt == request.time &&
           isWorkspaceOwner(workspaceId);
         allow update: if false;
         allow delete: if isVerifiedUser() && isValidId(workspaceId) && isValidId(logId) && isAdmin();

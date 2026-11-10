@@ -4,15 +4,18 @@ import {
   Calculator,
   Car,
   Check,
+  CheckCircle2,
   CornerDownLeft,
   ExternalLink,
   Landmark,
   Printer,
   QrCode,
+  RefreshCw,
   Search,
   Sparkles,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import { useDealership } from '../context/DealershipContext';
 import {
@@ -31,6 +34,7 @@ import {
   parseSmartPasteVehicleText,
   searchGlobalCommandPalette,
 } from '../utils/accounting';
+import { decodeVinNumber, sanitizeVin, VinDecodeResult } from '../utils/vinDecoder';
 
 const COLOR_SWATCHES = [
   { name: 'White', hex: '#f8fafc' },
@@ -82,6 +86,7 @@ export const WorkspaceModals: React.FC = () => {
     setActiveRoute,
     setSelectedVehicleId,
     jumpToCommandPaletteResult,
+    showToast,
   } = useDealership();
 
   // 1. Add Vehicle Modal State
@@ -221,6 +226,39 @@ export const WorkspaceModals: React.FC = () => {
   const [warrantyType, setWarrantyType] = useState<'as_is' | 'warranty'>(
     'warranty'
   );
+
+  // Automatic VIN Decoding State
+  const [isDecodingVin, setIsDecodingVin] = useState(false);
+  const [vinDecodeResult, setVinDecodeResult] = useState<VinDecodeResult | null>(null);
+
+  const handleTriggerVinDecode = async (vinToDecode?: string) => {
+    const vinText = vinToDecode || vVin;
+    if (!vinText || vinText.length < 10) return;
+    setIsDecodingVin(true);
+    try {
+      const res = await decodeVinNumber(vinText);
+      setVinDecodeResult(res);
+      if (res.isValid) {
+        if (res.year) setVYear(res.year);
+        if (res.make) setVMake(res.make);
+        if (res.model) setVModel(res.model);
+        if (res.trim) setVTrim(res.trim);
+        if (res.engine) setVEngine(res.engine);
+        if (res.drivetrain) setVDrivetrain(res.drivetrain);
+        showToast(
+          `VIN Decoded: ${res.year || ''} ${res.make || ''} ${res.model || ''} (${
+            res.rawSource === 'nhtsa' ? 'Official NHTSA Registry' : 'Local WMI'
+          })`
+        );
+      } else if (res.error) {
+        showToast(`VIN Decode: ${res.error}`);
+      }
+    } catch (_err) {
+      showToast('VIN Decode unavailable or invalid format.');
+    } finally {
+      setIsDecodingVin(false);
+    }
+  };
 
   // Command Search State
   const [cmdQuery, setCmdQuery] = useState('');
@@ -419,16 +457,43 @@ export const WorkspaceModals: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">
-                    17-Character VIN
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-medium text-slate-700">
+                      17-Character VIN
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleTriggerVinDecode()}
+                      disabled={isDecodingVin || vVin.length < 10}
+                      className="text-[11px] font-semibold text-[#f17832] hover:underline flex items-center gap-1 disabled:opacity-40"
+                    >
+                      {isDecodingVin ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin text-[#f17832]" />
+                          <span>Decoding VIN...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3 h-3 text-[#f17832]" />
+                          <span>Auto-Decode VIN</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     maxLength={17}
                     required
                     value={vVin}
-                    onChange={(e) => setVVin(e.target.value.toUpperCase())}
-                    className="w-full px-3 py-1.5 rounded border border-slate-200 font-mono"
+                    onChange={(e) => {
+                      const nextVin = sanitizeVin(e.target.value);
+                      setVVin(nextVin);
+                      if (nextVin.length === 17) {
+                        void handleTriggerVinDecode(nextVin);
+                      }
+                    }}
+                    placeholder="e.g. 1HGCV1F34LA012345"
+                    className="w-full px-3 py-1.5 rounded border border-slate-200 font-mono tracking-wider text-slate-900 uppercase"
                   />
                 </div>
                 <div>
@@ -444,6 +509,26 @@ export const WorkspaceModals: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* VIN Decode Success Feedback Callout Banner */}
+              {vinDecodeResult && vinDecodeResult.isValid && (
+                <div className="p-3 rounded-lg bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex items-center justify-between gap-2 shadow-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-bold text-emerald-950 truncate">
+                        Decoded {vinDecodeResult.year} {vinDecodeResult.make} {vinDecodeResult.model} {vinDecodeResult.trim}
+                      </div>
+                      <div className="text-[11px] text-emerald-700 font-mono truncate">
+                        {vinDecodeResult.engine} · {vinDecodeResult.drivetrain} · Source: {vinDecodeResult.rawSource === 'nhtsa' ? 'Official NHTSA Registry' : 'Local WMI'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold shrink-0 border border-emerald-200">
+                    Fields Auto-Filled
+                  </span>
+                </div>
+              )}
 
               {/* Year steppers + quick chips */}
               <div>
