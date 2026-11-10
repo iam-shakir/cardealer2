@@ -1,0 +1,6 @@
+{
+  "name": "Car Dealer Tracker",
+  "description": "Production-grade local-first operating system for independent and used car dealerships with unified unit-level profit accounting, FIFO parts inventory, CRM pipeline, treasury ledger, and Voice-to-Work AI Assistant.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

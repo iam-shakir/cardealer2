@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #f17832;
+  --accent-hover: #dc621e;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-mono,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle horizontal scrollbar for touch filter bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,0 +1,381 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // 0. GLOBAL SAFETY NET (Default-Deny Catch-All)
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // 1. PRIMITIVE & IDENTITY HELPERS
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Trusted Admin helper: checks /admins/{uid} document or bootstrapped verified owner email
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'raylander199721@gmail.com'
+      );
+    }
+
+    // Master Gate helper: verifies parent workspace exists and is owned by current user
+    function isWorkspaceOwner(workspaceId) {
+      return isSignedIn() &&
+        request.auth.uid == workspaceId &&
+        exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+        get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 2. VALIDATION BLUEPRINTS (Anti-Update-Gap Schema Helpers)
+    // =========================================================================
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'dealershipTitle', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'dealershipTitle', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.dealershipTitle is string && data.dealershipTitle.size() >= 1 && data.dealershipTitle.size() <= 120 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == userId && data.uid == request.auth.uid && isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.phone is string && data.phone.size() <= 40 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data, adminId) {
+      return data.keys().hasAll(['uid', 'note', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'note', 'createdAt']) &&
+        data.uid is string && data.uid == adminId && isValidId(data.uid) &&
+        data.note is string && data.note.size() >= 1 && data.note.size() <= 200 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidDealershipWorkspace(data, workspaceId) {
+      return data.keys().hasAll([
+          'ownerId',
+          'dealershipName',
+          'currency',
+          'activeRole',
+          'vehiclesCount',
+          'clientsCount',
+          'salesCount',
+          'totalRevenue',
+          'totalCashBalance',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId',
+          'dealershipName',
+          'currency',
+          'activeRole',
+          'vehiclesCount',
+          'clientsCount',
+          'salesCount',
+          'totalRevenue',
+          'totalCashBalance',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.ownerId is string && data.ownerId == workspaceId && data.ownerId == request.auth.uid && isValidId(data.ownerId) &&
+        data.dealershipName is string && data.dealershipName.size() >= 1 && data.dealershipName.size() <= 120 &&
+        data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 10 &&
+        data.currency in ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'AED'] &&
+        data.activeRole is string && data.activeRole.size() >= 4 && data.activeRole.size() <= 20 &&
+        data.activeRole in ['Owner', 'Admin', 'Sales', 'Viewer'] &&
+        data.vehiclesCount is int && data.vehiclesCount >= 0 && data.vehiclesCount <= 5000 &&
+        data.clientsCount is int && data.clientsCount >= 0 && data.clientsCount <= 5000 &&
+        data.salesCount is int && data.salesCount >= 0 && data.salesCount <= 5000 &&
+        data.totalRevenue is number && data.totalRevenue >= 0 && data.totalRevenue <= 1000000000 &&
+        data.totalCashBalance is number && data.totalCashBalance >= -100000000 && data.totalCashBalance <= 1000000000 &&
+        data.status is string && data.status.size() >= 6 && data.status.size() <= 16 &&
+        data.status in ['active', 'archived'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudVehicleRecord(data, workspaceId) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'ownerId',
+          'stockId',
+          'vin',
+          'year',
+          'make',
+          'model',
+          'trim',
+          'purchasePrice',
+          'askingPrice',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'workspaceId',
+          'ownerId',
+          'stockId',
+          'vin',
+          'year',
+          'make',
+          'model',
+          'trim',
+          'purchasePrice',
+          'askingPrice',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.workspaceId is string && data.workspaceId == workspaceId && isValidId(data.workspaceId) &&
+        data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId) &&
+        data.stockId is string && data.stockId.size() >= 1 && data.stockId.size() <= 40 &&
+        data.vin is string && data.vin.size() >= 1 && data.vin.size() <= 40 &&
+        data.year is int && data.year >= 1980 && data.year <= 2035 &&
+        data.make is string && data.make.size() >= 1 && data.make.size() <= 60 &&
+        data.model is string && data.model.size() >= 1 && data.model.size() <= 80 &&
+        data.trim is string && data.trim.size() <= 80 &&
+        data.purchasePrice is number && data.purchasePrice >= 0 && data.purchasePrice <= 10000000 &&
+        data.askingPrice is number && data.askingPrice >= 0 && data.askingPrice <= 10000000 &&
+        data.status is string && data.status.size() >= 4 && data.status.size() <= 20 &&
+        data.status in ['Available', 'In prep', 'In transit', 'Reserved', 'Sold'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudSyncAuditEntry(data, workspaceId) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'ownerId',
+          'title',
+          'summary',
+          'category',
+          'vehiclesCount',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'workspaceId',
+          'ownerId',
+          'title',
+          'summary',
+          'category',
+          'vehiclesCount',
+          'createdAt'
+        ]) &&
+        data.workspaceId is string && data.workspaceId == workspaceId && isValidId(data.workspaceId) &&
+        data.ownerId is string && data.ownerId == request.auth.uid && isValidId(data.ownerId) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 80 &&
+        data.vehiclesCount is int && data.vehiclesCount >= 0 && data.vehiclesCount <= 5000 &&
+        data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // 3. COLLECTION RULES (PII Isolation, Master Gate, Action-Based Updates)
+    // =========================================================================
+
+    // 3A. Split User Profile: Public Metadata (Non-PII)
+    match /users/{userId}/public/{docId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidId(docId) &&
+        isOwner(userId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidId(docId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'dealershipTitle', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && isValidId(docId) && isAdmin();
+    }
+
+    // 3B. Split User Profile: Strictly Isolated PII (Email & Phone)
+    match /users/{userId}/private/{docId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidId(docId) &&
+        isOwner(userId) &&
+        isValidUserPrivateInfo(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidId(docId) &&
+        isValidUserPrivateInfo(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && isValidId(docId) && isAdmin();
+    }
+
+    // 3C. Trusted Admin Registry (System / Admin Managed Only)
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isVerifiedUser() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming(), adminId) &&
+        incoming().createdAt == request.time &&
+        isAdmin();
+      allow update: if isVerifiedUser() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming(), adminId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['note']);
+      allow delete: if isVerifiedUser() && isValidId(adminId) && isAdmin();
+    }
+
+    // 3D. Root Dealership Workspaces (Master Gate)
+    match /workspaces/{workspaceId} {
+      allow get: if isSignedIn() && isValidId(workspaceId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() &&
+        isValidId(workspaceId) &&
+        isOwner(workspaceId) &&
+        isValidDealershipWorkspace(incoming(), workspaceId) &&
+        incoming().status == 'active' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(workspaceId) &&
+        isValidDealershipWorkspace(incoming(), workspaceId) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (existing().status != 'archived' || isAdmin()) && (
+          isAdmin() ||
+          // Action 1: Sync Workspace Metrics & Settings
+          (isOwner(workspaceId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'dealershipName',
+              'currency',
+              'activeRole',
+              'vehiclesCount',
+              'clientsCount',
+              'salesCount',
+              'totalRevenue',
+              'totalCashBalance',
+              'updatedAt'
+            ])) ||
+          // Action 2: Archive Workspace (Terminal Transition)
+          (isOwner(workspaceId) &&
+            incoming().status == 'archived' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(workspaceId) && isAdmin();
+
+      // 3E. Subcollection: Synced Vehicles (Relational Master Gate Sync)
+      match /vehicles/{vehicleId} {
+        allow get: if isSignedIn() && isValidId(workspaceId) && isValidId(vehicleId) && (existing().ownerId == request.auth.uid || isAdmin());
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(vehicleId) &&
+          isValidCloudVehicleRecord(incoming(), workspaceId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          isWorkspaceOwner(workspaceId);
+        allow update: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(vehicleId) &&
+          isValidCloudVehicleRecord(incoming(), workspaceId) &&
+          incoming().workspaceId == existing().workspaceId &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          (existing().status != 'Sold' || isAdmin()) &&
+          isWorkspaceOwner(workspaceId) && (
+            isAdmin() ||
+            // Action 1: Update Vehicle Pricing, Specs, or Status
+            (existing().ownerId == request.auth.uid &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'stockId',
+                'vin',
+                'year',
+                'make',
+                'model',
+                'trim',
+                'purchasePrice',
+                'askingPrice',
+                'status',
+                'updatedAt'
+              ]))
+          );
+        allow delete: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(vehicleId) &&
+          (isWorkspaceOwner(workspaceId) || isAdmin());
+      }
+
+      // 3F. Subcollection: Immutable Cloud Sync & Audit Logs
+      match /syncLogs/{logId} {
+        allow get: if isSignedIn() && isValidId(workspaceId) && isValidId(logId) && (existing().ownerId == request.auth.uid || isAdmin());
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+        allow create: if isVerifiedUser() &&
+          isValidId(workspaceId) &&
+          isValidId(logId) &&
+          isValidCloudSyncAuditEntry(incoming(), workspaceId) &&
+          incoming().createdAt == request.time &&
+          isWorkspaceOwner(workspaceId);
+        allow update: if false;
+        allow delete: if isVerifiedUser() && isValidId(workspaceId) && isValidId(logId) && isAdmin();
+      }
+    }
+
+    // 3G. Primary Application Database Storage (/appData/{docId})
+    match /appData/{docId} {
+      allow read, write: if isValidId(docId);
+    }
+  }
+}

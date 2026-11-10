@@ -1,0 +1,384 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Public dealer profile metadata isolated from PII fields.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name of the dealer user.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "dealershipTitle": {
+          "type": "string",
+          "description": "Public dealership title associated with the user.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": ["uid", "displayName", "dealershipTitle", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly isolated PII record (email and phone) accessible only to the owner or admin.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the user.",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number of the user.",
+          "minLength": 0,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": ["uid", "email", "phone", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted administrator membership document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Admin user UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "note": {
+          "type": "string",
+          "description": "Admin assignment audit note.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["uid", "note", "createdAt"]
+    },
+    "DealershipWorkspace": {
+      "title": "DealershipWorkspace",
+      "description": "Root dealership cloud workspace summary and synchronization state.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dealershipName": {
+          "type": "string",
+          "description": "Name of the dealership workspace.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "currency": {
+          "type": "string",
+          "description": "Workspace reporting currency code.",
+          "enum": ["USD", "EUR", "GBP", "CAD", "AUD", "AED"],
+          "minLength": 3,
+          "maxLength": 10
+        },
+        "activeRole": {
+          "type": "string",
+          "description": "Active RBAC role in the workspace.",
+          "enum": ["Owner", "Admin", "Sales", "Viewer"],
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "vehiclesCount": {
+          "type": "integer",
+          "description": "Total vehicles tracked in the workspace."
+        },
+        "clientsCount": {
+          "type": "integer",
+          "description": "Total CRM client leads tracked in the workspace."
+        },
+        "salesCount": {
+          "type": "integer",
+          "description": "Total completed vehicle sales in the workspace."
+        },
+        "totalRevenue": {
+          "type": "number",
+          "description": "Total realized gross sales revenue in USD."
+        },
+        "totalCashBalance": {
+          "type": "number",
+          "description": "Combined treasury cash and bank balance in USD."
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status of the workspace (archived is terminal).",
+          "enum": ["active", "archived"],
+          "minLength": 6,
+          "maxLength": 16
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "dealershipName",
+        "currency",
+        "activeRole",
+        "vehiclesCount",
+        "clientsCount",
+        "salesCount",
+        "totalRevenue",
+        "totalCashBalance",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudVehicleRecord": {
+      "title": "CloudVehicleRecord",
+      "description": "Individual vehicle inventory record synced under a dealership workspace.",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "Parent workspace ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the vehicle owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "stockId": {
+          "type": "string",
+          "description": "Internal dealer stock number.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "vin": {
+          "type": "string",
+          "description": "17-character vehicle identification number.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "year": {
+          "type": "integer",
+          "description": "Vehicle model year."
+        },
+        "make": {
+          "type": "string",
+          "description": "Vehicle manufacturer make.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "model": {
+          "type": "string",
+          "description": "Vehicle model name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "trim": {
+          "type": "string",
+          "description": "Vehicle trim package.",
+          "minLength": 0,
+          "maxLength": 80
+        },
+        "purchasePrice": {
+          "type": "number",
+          "description": "Acquisition cost in USD."
+        },
+        "askingPrice": {
+          "type": "number",
+          "description": "Retail asking price in USD."
+        },
+        "status": {
+          "type": "string",
+          "description": "Inventory status (Sold is terminal for non-admin updates).",
+          "enum": ["Available", "In prep", "In transit", "Reserved", "Sold"],
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last update timestamp."
+        }
+      },
+      "required": [
+        "workspaceId",
+        "ownerId",
+        "stockId",
+        "vin",
+        "year",
+        "make",
+        "model",
+        "trim",
+        "purchasePrice",
+        "askingPrice",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudSyncAuditEntry": {
+      "title": "CloudSyncAuditEntry",
+      "description": "Immutable cloud synchronization and treasury audit log entry under a dealership workspace.",
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "description": "Parent workspace ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the author.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Audit log title.",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "summary": {
+          "type": "string",
+          "description": "Executive summary of the sync or voice audit event.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "category": {
+          "type": "string",
+          "description": "Audit category.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "vehiclesCount": {
+          "type": "integer",
+          "description": "Number of vehicles synced at the time of the audit."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": [
+        "workspaceId",
+        "ownerId",
+        "title",
+        "summary",
+        "category",
+        "vehiclesCount",
+        "createdAt"
+      ]
+    },
+    "AppDataRecord": {
+      "title": "AppDataRecord",
+      "description": "Full application primary dealership state document stored in Firebase Firestore.",
+      "type": "object",
+      "properties": {
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last Firestore sync."
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/{docId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Public dealer profile metadata isolated from PII."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Private PII (email and phone) accessible strictly by the user or an admin."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Trusted administrator registry."
+    },
+    "/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/DealershipWorkspace" },
+      "description": "Root dealership workspace state and KPI summary."
+    },
+    "/workspaces/{workspaceId}/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/CloudVehicleRecord" },
+      "description": "Synced vehicle inventory items belonging to a dealership workspace."
+    },
+    "/workspaces/{workspaceId}/syncLogs/{logId}": {
+      "schema": { "$ref": "#/entities/CloudSyncAuditEntry" },
+      "description": "Immutable cloud sync and voice audit log entries belonging to a dealership workspace."
+    },
+    "/appData/{docId}": {
+      "schema": { "$ref": "#/entities/AppDataRecord" },
+      "description": "Primary Firebase Firestore database storage for the entire dealership application state."
+    }
+  }
+}
